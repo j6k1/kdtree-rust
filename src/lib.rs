@@ -33,8 +33,8 @@ pub struct KDNode<const D:usize,P,T> where P: PartialOrd + Mul + Add {
     positions:Rc<[P;D]>,
     value:Rc<RefCell<T>>,
     color: Rc<RefCell<Color>>,
-    left:Box<Option<KDNode<D,P,T>>>,
-    right:Box<Option<KDNode<D,P,T>>>,
+    left:Option<Box<KDNode<D,P,T>>>,
+    right:Option<Box<KDNode<D,P,T>>>,
 }
 impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
     pub fn new(positions:Rc<[P;D]>,value:Rc<RefCell<T>>) -> KDNode<D,P,T> {
@@ -42,20 +42,20 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
             positions: positions,
             value: value,
             color: Rc::new(RefCell::new(Color::Red)),
-            left: Box::new(None),
-            right: Box::new(None),
+            left: None,
+            right: None,
         }
     }
 
     pub fn right_rotate(t: KDNode<D,P,T>) -> KDNode<D,P,T> {
-        match *t.left {
+        match t.left {
             Some(left) => {
                 KDNode {
                     positions: left.positions,
                     value: left.value,
                     color: left.color,
                     left: left.left,
-                    right: Box::new(Some(KDNode {
+                    right: Some(Box::new(KDNode {
                         positions: t.positions,
                         value: t.value,
                         color: t.color,
@@ -69,14 +69,14 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
     }
 
     pub fn left_rotate(t: KDNode<D,P,T>) -> KDNode<D,P,T> {
-        match *t.right {
+        match t.right {
             Some(right) => {
                 KDNode {
                     positions: right.positions,
                     value: right.value,
                     color: right.color,
                     right: right.right,
-                    left: Box::new(Some(KDNode {
+                    left: Some(Box::new(KDNode {
                         positions: t.positions,
                         value: t.value,
                         color: t.color,
@@ -96,7 +96,7 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
                 t
             },
             Some(left) => {
-                t.left = Box::new(Some(Self::left_rotate(left)));
+                t.left = Some(Box::new(Self::left_rotate(*left)));
                 Self::right_rotate(t)
             }
         }
@@ -109,19 +109,19 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
                 t
             },
             Some(right) => {
-                t.right = Box::new(Some(Self::right_rotate(right)));
+                t.right = Some(Box::new(Self::right_rotate(*right)));
                 Self::left_rotate(t)
             }
         }
     }
 
-    fn insert_inner(t: Box<Option<KDNode<D,P,T>>>,
-                    positions:&Rc<[P;D]>,
-                    parent_positions:&Rc<[P;D]>,
-                    parent_color:Option<Color>,
-                    lr:Option<LR>,
-                    value:Rc<RefCell<T>>,demension:usize) -> (KDNode<D,P,T>,Balance) {
-        match *t {
+    fn insert(t: Option<Box<KDNode<D,P,T>>>,
+              positions:&Rc<[P;D]>,
+              parent_color:Option<Color>,
+              lr:Option<LR>,
+              value:Rc<RefCell<T>>,
+              demension:usize) -> (KDNode<D,P,T>,Balance) {
+        match t {
             None if demension == D - 1 => {
                 let b = if parent_color.map(|c| c == Color::Red).unwrap_or(false) {
                     Balance::Pre
@@ -132,78 +132,73 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
                 (KDNode::new(Rc::clone(positions), Rc::clone(&value)),b)
             },
             None => {
-                let (n,b) = Self::insert_inner(Box::new(None),
-                                               positions,
-                                               parent_positions,
-                                                None,
-                                               None,
-                                               Rc::clone(&value),(demension+1) % D);
+                let (n,b) = Self::insert(None,
+                                         positions,
+                                         None,
+                                         None,
+                                         Rc::clone(&value), (demension+1) % D);
 
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
                     color: Rc::new(RefCell::new(Color::Red)),
-                    left: Box::new(None),
-                    right: Box::new(Some(n))
+                    left: None,
+                    right: Some(Box::new(n))
                 };
 
                 Self::balance(t,demension,b,None,None)
             },
             Some(mut t) if demension == D - 1 => {
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
-                    let (n,b) = Self::insert_inner(t.left,
-                                                   positions,
-                                                   &t.positions,
-                                                    Some(*t.color.deref().borrow()),
-                                                   Some(LR::L),
-                                                   value,(demension+1) % D);
+                    let (n,b) = Self::insert(t.left,
+                                             positions,
+                                             Some(*t.color.deref().borrow()),
+                                             Some(LR::L),
+                                             value, (demension+1) % D);
 
-                    t.left = Box::new(Some(n));
+                    t.left = Some(Box::new(n));
 
-                    (t,b)
+                    (*t,b)
                 } else {
-                    let (n,b) = Self::insert_inner(t.right,
-                                               positions,
-                                               &t.positions,
-                                                   Some(*t.color.deref().borrow()),
-                                               Some(LR::R),
-                                               value,(demension+1) % D);
+                    let (n,b) = Self::insert(t.right,
+                                             positions,
+                                             Some(*t.color.deref().borrow()),
+                                             Some(LR::R),
+                                             value, (demension+1) % D);
 
-                    t.right = Box::new(Some(n));
+                    t.right = Some(Box::new(n));
 
-                    (t,b)
+                    (*t,b)
                 }
             },
             Some(mut t) => {
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
-                    let (n,b) = Self::insert_inner(t.left,
-                                                   positions,
-                                                   parent_positions,
-                                                   parent_color,
-                                                   lr,
-                                                   value,(demension+1) % D);
+                    let (n,b) = Self::insert(t.left,
+                                             positions,
+                                             parent_color,
+                                             lr,
+                                             value, (demension+1) % D);
 
-                    t.left = Box::new(Some(n));
+                    t.left = Some(Box::new(n));
 
                     if demension == 0 {
-                        Self::balance(t, demension, b, lr,Some(LR::L))
+                        Self::balance(*t, demension, b, lr,Some(LR::L))
                     } else {
-                        (t,b)
+                        (*t,b)
                     }
                 } else {
-                    let (n,b) = Self::insert_inner(t.right,
-                                                   positions,
-                                                   parent_positions,
-                                                   parent_color,
-                                                   lr,
-                                                   value,(demension+1) % D);
+                    let (n,b) = Self::insert(t.right,
+                                             positions,
+                                             parent_color,
+                                             lr,
+                                             value, (demension+1) % D);
 
-                    t.right = Box::new(Some(n));
+                    t.right = Some(Box::new(n));
 
                     if demension == 0 {
-                        Self::balance(t, demension, b, lr,Some(LR::R))
+                        Self::balance(*t, demension, b, lr,Some(LR::R))
                     } else {
-                        (t,b)
+                        (*t,b)
                     }
                 }
             }
@@ -244,6 +239,27 @@ impl<const D:usize,P,T> KDNode<D,P,T> where P: PartialOrd + Mul + Add {
                 }
             }
         }
+    }
+}
+#[derive(Debug)]
+pub struct KDTree<const D:usize,P,T> where P: PartialOrd + Mul + Add {
+    root: Option<Box<KDNode<D,P,T>>>
+}
+impl<const D:usize,P,T> KDTree<D,P,T> where P: PartialOrd + Mul + Add {
+    pub fn new() -> KDTree<D,P,T> {
+        KDTree {
+            root: None
+        }
+    }
+
+    pub fn insert(&mut self,positions:[P;D],value:T) {
+        let (n,_) = KDNode::insert(self.root.take(),
+                                   &Rc::new(positions),
+                                   None,
+                                   None,
+                                   Rc::new(RefCell::new(value)),
+                                   0);
+        self.root = Some(Box::new(n));
     }
 }
 
