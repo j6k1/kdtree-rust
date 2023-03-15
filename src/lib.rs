@@ -181,40 +181,28 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T>
             if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                 if let Some(c) = t.left.as_ref() {
                     Self::nearest(Some(&c),positions,Some(&c.positions),Some(&c.value),(demension + 1) % D)
+                } else if let Some(parent_positions) = parent_positions.as_ref() {
+                    Some(Self::select(positions,
+                                 t.positions.borrow(),
+                                 &t.value,
+                                 parent_positions,
+                                        parent_value
+                                ))
                 } else {
-                    if demension == D - 1 {
-                        if let Some(parent_positions) = parent_positions.as_ref() {
-                            Some(Self::select(positions,
-                                         t.positions.borrow(),
-                                         &t.value,
-                                         parent_positions,
-                                                parent_value
-                                        ))
-                        } else {
-                            Some((t.positions.borrow(),Rc::clone(&t.value)))
-                        }
-                    } else {
-                        unreachable!()
-                    }
+                    Some((t.positions.borrow(),Rc::clone(&t.value)))
                 }
             } else {
                 if let Some(c) = t.right.as_ref() {
                     Self::nearest(Some(&c),positions,Some(&c.positions),Some(&c.value),(demension + 1) % D)
+                } else if let Some(parent_positions) = parent_positions.as_ref() {
+                    Some(Self::select(positions,
+                                 t.positions.borrow(),
+                                 &t.value,
+                                 parent_positions,
+                                 parent_value
+                    ))
                 } else {
-                    if demension == D - 1 {
-                        if let Some(parent_positions) = parent_positions.as_ref() {
-                            Some(Self::select(positions,
-                                         t.positions.borrow(),
-                                         &t.value,
-                                         parent_positions,
-                                         parent_value
-                            ))
-                        } else {
-                            Some((t.positions.borrow(),Rc::clone(&t.value)))
-                        }
-                    } else {
-                        unreachable!()
-                    }
+                    Some((t.positions.borrow(),Rc::clone(&t.value)))
                 }
             }
         } else {
@@ -275,11 +263,15 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T>
                 Self::balance(t,demension,b,None,None)
             },
             Some(mut t) if demension == D - 1 => {
+                let color = {
+                    t.color.deref().borrow().clone()
+                };
+
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                     let (n,b) = Self::insert(t.left,
                                              positions,
                                              &Rc::new(RefCell::new(Color::Red)),
-                                             Some(*t.color.deref().borrow()),
+                                             Some(color),
                                              Some(LR::L),
                                              value, (demension+1) % D);
 
@@ -290,7 +282,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T>
                     let (n,b) = Self::insert(t.right,
                                              positions,
                                              &Rc::new(RefCell::new(Color::Red)),
-                                             Some(*t.color.deref().borrow()),
+                                             Some(color),
                                              Some(LR::R),
                                              value, (demension+1) % D);
 
