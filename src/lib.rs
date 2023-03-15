@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 use std::rc::Rc;
@@ -30,11 +29,44 @@ impl Neg for Color {
         }
     }
 }
+pub trait EuclideanDistance<T> {
+    type Output;
+    fn distance(&self,rhs:T) -> Self::Output;
+}
+impl<'a,const D:usize,P> EuclideanDistance<&'a [P;D]> for &'a [P;D]
+    where P: PartialOrd + Mul<P, Output = P> + Add<P, Output = P> + Sub<P, Output = P> +
+             Clone + Copy + Default + AbsDistance<P, Output = P> {
+    type Output = P;
+
+    fn distance(&self,rhs: &'a [P; D]) -> P {
+        self.iter().zip(rhs.iter()).fold(P::default(),|acc,(p1,p2)| {
+            acc + p1.abs_dinstance(p2)
+        })
+    }
+}
+pub trait AbsDistance<T> {
+    type Output;
+
+    fn abs_dinstance(&self,rhs:&T) -> Self::Output;
+}
+impl<P> AbsDistance<P> for P
+    where P: PartialOrd + Mul<P, Output = P> + Add<P, Output = P> + Sub<P, Output = P> +
+             Clone + Copy + Default {
+    type Output = P;
+
+    fn abs_dinstance(&self, rhs: &P) -> P {
+        if self.partial_cmp(rhs).unwrap().is_le() {
+            *rhs - *self
+        } else {
+            *self - *rhs
+        }
+    }
+}
 #[derive(Debug)]
-pub struct KDNode<'a,const D:usize,P,T> where P: PartialOrd +
-                                              Mul<Output = P> + Add<Output = P> + Sub +
-                                              Default + 'a,
-                                              &'a P: Sub<&'a P, Output = P> {
+pub struct KDNode<'a,const D:usize,P,T>
+    where P: PartialOrd + Mul + Add + Sub +
+             Clone + Copy + Default + AbsDistance<P> + 'a,
+             &'a [P;D]: EuclideanDistance<&'a [P;D], Output = P> + 'a {
     positions:Rc<[P;D]>,
     value:Rc<RefCell<T>>,
     color: Rc<RefCell<Color>>,
@@ -42,10 +74,10 @@ pub struct KDNode<'a,const D:usize,P,T> where P: PartialOrd +
     right:Option<Box<KDNode<'a,D,P,T>>>,
     l:PhantomData<&'a ()>
 }
-impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
-                                                     Mul<Output = P> + Add<Output = P> + Sub +
-                                                     Default + 'a,
-                                                     &'a P: Sub<&'a P, Output = P> {
+impl<'a,const D:usize,P,T> KDNode<'a,D,P,T>
+    where P: PartialOrd + Mul + Add + Sub +
+             Clone + Copy + Default + AbsDistance<P> + 'a,
+             &'a [P;D]: EuclideanDistance<&'a [P;D], Output = P> + 'a {
     pub fn new(positions:Rc<[P;D]>,value:Rc<RefCell<T>>) -> KDNode<'a,D,P,T> {
         KDNode {
             positions: positions,
@@ -146,7 +178,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                parent_value:Option<&'a Rc<RefCell<T>>>,
                demension:usize) -> Option<(&'a [P;D],Rc<RefCell<T>>)> {
         if let Some(t) = t {
-            if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
+            if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                 if let Some(c) = t.left.as_ref() {
                     Self::nearest(Some(&c),positions,Some(&c.positions),Some(&c.value),(demension + 1) % D)
                 } else {
@@ -195,15 +227,11 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                   child_value:&'a Rc<RefCell<T>>,
                   parent:&'a [P;D],
                   parent_value:Option<&'a Rc<RefCell<T>>>) -> (&'a [P;D],Rc<RefCell<T>>) {
-        let distance_child = positions.iter().zip(child.iter()).fold(P::default(),|acc,(p1,p2)| {
-            acc + (p1 - p2) * (p1 - p2)
-        });
+        let distance_child = positions.distance(child);
 
-        let distance_parent = positions.iter().zip(parent.iter()).fold(P::default(),|acc,(p1,p2)| {
-            acc + (p1 - p2) * (p1 - p2)
-        });
+        let distance_parent = positions.distance(parent);
 
-        if distance_child.partial_cmp(&distance_parent).unwrap() == Ordering::Less {
+        if distance_child.partial_cmp(&distance_parent).unwrap().is_le() {
             (child,Rc::clone(child_value))
         } else {
             (parent,Rc::clone(parent_value.unwrap()))
@@ -247,7 +275,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 Self::balance(t,demension,b,None,None)
             },
             Some(mut t) if demension == D - 1 => {
-                if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
+                if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                     let (n,b) = Self::insert(t.left,
                                              positions,
                                              &Rc::new(RefCell::new(Color::Red)),
@@ -272,7 +300,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 }
             },
             Some(mut t) => {
-                if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
+                if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                     let (n,b) = Self::insert(t.left,
                                              positions,
                                              &Rc::clone(&t.color),
@@ -348,17 +376,15 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
     }
 }
 #[derive(Debug)]
-pub struct KDTree<'a,const D:usize,P,T> where P: PartialOrd +
-                                                 Mul<Output = P> + Add<Output = P> + Sub +
-                                                 Default + 'a,
-                                                 &'a P: Sub<&'a P, Output = P> {
+pub struct KDTree<'a,const D:usize,P,T>
+    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + AbsDistance<P> + 'a,
+          &'a [P;D]: EuclideanDistance<&'a [P;D], Output = P> + 'a {
     root: Option<Box<KDNode<'a,D,P,T>>>,
     l:PhantomData<&'a ()>
 }
-impl<'a,const D:usize,P,T> KDTree<'a,D,P,T> where P: PartialOrd +
-                                                  Mul<Output = P> + Add<Output = P> + Sub +
-                                                  Default + 'a,
-                                                  &'a P: Sub<&'a P, Output = P> {
+impl<'a,const D:usize,P,T> KDTree<'a,D,P,T>
+    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + AbsDistance<P> + 'a,
+          &'a [P;D]: EuclideanDistance<&'a [P;D], Output = P> + 'a {
     pub fn new() -> KDTree<'a,D,P,T> {
         KDTree {
             root: None,
