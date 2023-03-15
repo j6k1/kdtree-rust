@@ -228,15 +228,9 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),Rc::clone(color)),b)
             },
             None => {
-                let color = if demension == 0 {
-                    Rc::new(RefCell::new(Color::Red))
-                } else {
-                    Rc::clone(color)
-                };
-
                 let (n,b) = Self::insert(None,
                                          positions,
-                                         &color,
+                                         &Rc::clone(color),
                                          None,
                                          None,
                                          Rc::clone(&value), (demension+1) % D);
@@ -256,7 +250,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
                     let (n,b) = Self::insert(t.left,
                                              positions,
-                                             &Rc::clone(&t.color),
+                                             &Rc::new(RefCell::new(Color::Red)),
                                              Some(*t.color.deref().borrow()),
                                              Some(LR::L),
                                              value, (demension+1) % D);
@@ -267,7 +261,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
-                                             &Rc::clone(&t.color),
+                                             &Rc::new(RefCell::new(Color::Red)),
                                              Some(*t.color.deref().borrow()),
                                              Some(LR::R),
                                              value, (demension+1) % D);
@@ -281,7 +275,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
                     let (n,b) = Self::insert(t.left,
                                              positions,
-                                             color,
+                                             &Rc::clone(&t.color),
                                              parent_color,
                                              lr,
                                              value, (demension+1) % D);
@@ -296,7 +290,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
-                                             color,
+                                             &Rc::clone(&t.color),
                                              parent_color,
                                              lr,
                                              value, (demension+1) % D);
