@@ -57,6 +57,17 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
         }
     }
 
+    fn with_color(positions:Rc<[P;D]>,value:Rc<RefCell<T>>,color:Rc<RefCell<Color>>) -> KDNode<'a,D,P,T> {
+        KDNode {
+            positions: positions,
+            value: value,
+            color: color,
+            left: None,
+            right: None,
+            l:PhantomData::<&'a ()>
+        }
+    }
+
     pub fn right_rotate(t: KDNode<'a,D,P,T>) -> KDNode<'a,D,P,T> {
         match t.left {
             Some(left) => {
@@ -201,6 +212,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
 
     fn insert(t: Option<Box<KDNode<'a,D,P,T>>>,
               positions:&Rc<[P;D]>,
+              color:&Rc<RefCell<Color>>,
               parent_color:Option<Color>,
               lr:Option<LR>,
               value:Rc<RefCell<T>>,
@@ -213,11 +225,18 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                     Balance::None
                 };
 
-                (KDNode::new(Rc::clone(positions), Rc::clone(&value)),b)
+                (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),Rc::clone(color)),b)
             },
             None => {
+                let color = if demension == 0 {
+                    Rc::new(RefCell::new(Color::Red))
+                } else {
+                    Rc::clone(color)
+                };
+
                 let (n,b) = Self::insert(None,
                                          positions,
+                                         &color,
                                          None,
                                          None,
                                          Rc::clone(&value), (demension+1) % D);
@@ -225,7 +244,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
-                    color: Rc::new(RefCell::new(Color::Red)),
+                    color: Rc::clone(&color),
                     left: None,
                     right: Some(Box::new(n)),
                     l:PhantomData::<&'a ()>
@@ -237,6 +256,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
                     let (n,b) = Self::insert(t.left,
                                              positions,
+                                             &Rc::clone(&t.color),
                                              Some(*t.color.deref().borrow()),
                                              Some(LR::L),
                                              value, (demension+1) % D);
@@ -247,6 +267,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
+                                             &Rc::clone(&t.color),
                                              Some(*t.color.deref().borrow()),
                                              Some(LR::R),
                                              value, (demension+1) % D);
@@ -260,6 +281,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap() == Ordering::Less {
                     let (n,b) = Self::insert(t.left,
                                              positions,
+                                             color,
                                              parent_color,
                                              lr,
                                              value, (demension+1) % D);
@@ -274,6 +296,7 @@ impl<'a,const D:usize,P,T> KDNode<'a,D,P,T> where P: PartialOrd +
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
+                                             color,
                                              parent_color,
                                              lr,
                                              value, (demension+1) % D);
@@ -366,11 +389,15 @@ impl<'a,const D:usize,P,T> KDTree<'a,D,P,T> where P: PartialOrd +
     pub fn insert(&mut self,positions:[P;D],value:T) {
         let (n,_) = KDNode::insert(self.root.take(),
                                    &Rc::new(positions),
+                                   &Rc::new(RefCell::new(Color::Black)),
                                    None,
                                    None,
                                    Rc::new(RefCell::new(value)),
                                    0);
         self.root = Some(Box::new(n));
+        self.root.as_ref().map(|root| {
+            *root.color.borrow_mut() = Color::Black;
+        });
     }
 }
 
