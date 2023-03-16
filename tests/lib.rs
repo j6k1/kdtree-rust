@@ -8,10 +8,10 @@ fn nearest<'a,const D:usize,P>(p:&'a [P;D],positions:&'a [[P;D]]) -> &'a [P;D]
     let s = &positions[0];
     let mut r = s;
 
-    let d = p.distance(s);
+    let d = p.euclidean_distance(s);
 
     for pt in positions.iter().skip(1) {
-        if pt.distance(p) < d {
+        if pt.euclidean_distance(p) < d {
             r = pt;
         }
     }
