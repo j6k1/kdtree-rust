@@ -287,12 +287,31 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                 (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),Rc::clone(color)),b)
             },
+            None if demension == 0 => {
+                let (n,b) = Self::insert(None,
+                                         positions,
+                                         &color,
+                                         parent_color,
+                                         None,
+                                         Rc::clone(&value), (demension+1) % K);
+
+                let t = KDNode {
+                    positions: Rc::clone(positions),
+                    value: Rc::clone(&value),
+                    color: Rc::clone(&color),
+                    left: None,
+                    right: Some(Box::new(n)),
+                    l:PhantomData::<&'a ()>
+                };
+
+                Self::balance(t,demension,b,lr,Some(LR::R))
+            },
             None => {
                 let (n,b) = Self::insert(None,
                                          positions,
                                          &Rc::clone(color),
-                                         None,
-                                         None,
+                                         parent_color,
+                                         lr,
                                          Rc::clone(&value), (demension+1) % K);
 
                 let t = KDNode {
@@ -307,15 +326,13 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 Self::balance(t,demension,b,None,None)
             },
             Some(mut t) if demension == K - 1 => {
-                let color = {
-                    t.color.deref().borrow().clone()
-                };
+                let parent_color = Some(color.deref().borrow().clone());
 
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                     let (n,b) = Self::insert(t.left,
                                              positions,
-                                             &Rc::new(RefCell::new(Color::Red)),
-                                             Some(color),
+                                             &Rc::clone(&t.color),
+                                             parent_color,
                                              Some(LR::L),
                                              value, (demension+1) % K);
 
@@ -325,8 +342,8 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
-                                             &Rc::new(RefCell::new(Color::Red)),
-                                             Some(color),
+                                             &Rc::clone(&t.color),
+                                             parent_color,
                                              Some(LR::R),
                                              value, (demension+1) % K);
 
@@ -335,11 +352,11 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     (*t,b)
                 }
             },
-            Some(mut t) => {
+            Some(mut t) if demension == 0 => {
                 if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                     let (n,b) = Self::insert(t.left,
                                              positions,
-                                             &Rc::clone(&t.color),
+                                             color,
                                              parent_color,
                                              lr,
                                              value, (demension+1) % K);
@@ -354,7 +371,40 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
-                                             &Rc::clone(&t.color),
+                                             color,
+                                             parent_color,
+                                             lr,
+                                             value, (demension+1) % K);
+
+                    t.right = Some(Box::new(n));
+
+                    if demension == 0 {
+                        Self::balance(*t, demension, b, lr,Some(LR::R))
+                    } else {
+                        (*t,b)
+                    }
+                }
+            },
+            Some(mut t) => {
+                if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
+                    let (n,b) = Self::insert(t.left,
+                                             positions,
+                                             color,
+                                             parent_color,
+                                             lr,
+                                             value, (demension+1) % K);
+
+                    t.left = Some(Box::new(n));
+
+                    if demension == 0 {
+                        Self::balance(*t, demension, b, lr,Some(LR::L))
+                    } else {
+                        (*t,b)
+                    }
+                } else {
+                    let (n,b) = Self::insert(t.right,
+                                             positions,
+                                             color,
                                              parent_color,
                                              lr,
                                              value, (demension+1) % K);
@@ -391,8 +441,6 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         };
                     }
 
-                    *t.color.borrow_mut() = Color::Black;
-
                     (t,Balance::Fix)
                 },
                 Balance::Fix => {
@@ -405,6 +453,18 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         };
                     }
 
+                    match lr {
+                        LR::L => {
+                            if let Some(c) = t.left.as_ref() {
+                                *c.color.borrow_mut() = Color::Black;
+                            }
+                        },
+                        LR::R => {
+                            if let Some(c) = t.right.as_ref() {
+                                *c.color.borrow_mut() = Color::Black;
+                            }
+                        }
+                    }
                     (t,Balance::None)
                 }
             }
