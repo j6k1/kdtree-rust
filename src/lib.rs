@@ -433,8 +433,6 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
     }
 
     fn balance(mut t: KDNode<'a, K,P,T>, demension:usize, balance:Balance, parent_lr:Option<LR>, lr:Option<LR>) -> (KDNode<'a, K,P,T>, Balance) {
-        //(t,balance)
-
         if demension > 0 {
             (t,balance)
         } else {
