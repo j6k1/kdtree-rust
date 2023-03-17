@@ -285,12 +285,18 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     Balance::None
                 };
 
-                (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),Rc::clone(color)),b)
+                let color = if let Some(_) = parent_color {
+                    Rc::new(RefCell::new(Color::Black))
+                } else {
+                    Rc::clone(&color)
+                };
+
+                (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),color),b)
             },
             None if demension == 0 => {
                 let (n,b) = Self::insert(None,
                                          positions,
-                                         &color,
+                                         color,
                                          parent_color,
                                          None,
                                          Rc::clone(&value), (demension+1) % K);
@@ -298,13 +304,13 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
-                    color: Rc::clone(&color),
+                    color: Rc::clone(color),
                     left: None,
                     right: Some(Box::new(n)),
                     l:PhantomData::<&'a ()>
                 };
 
-                Self::balance(t,demension,b,lr,Some(LR::R))
+                (t,b)
             },
             None => {
                 let (n,b) = Self::insert(None,
@@ -323,7 +329,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     l:PhantomData::<&'a ()>
                 };
 
-                Self::balance(t,demension,b,None,None)
+                (t,b)
             },
             Some(mut t) if demension == K - 1 => {
                 let parent_color = Some(color.deref().borrow().clone());
@@ -363,11 +369,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                     t.left = Some(Box::new(n));
 
-                    if demension == 0 {
-                        Self::balance(*t, demension, b, lr,Some(LR::L))
-                    } else {
-                        (*t,b)
-                    }
+                    Self::balance(*t, demension, b, lr,Some(LR::L))
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
@@ -378,11 +380,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                     t.right = Some(Box::new(n));
 
-                    if demension == 0 {
-                        Self::balance(*t, demension, b, lr,Some(LR::R))
-                    } else {
-                        (*t,b)
-                    }
+                    Self::balance(*t, demension, b, lr,Some(LR::R))
                 }
             },
             Some(mut t) => {
@@ -396,11 +394,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                     t.left = Some(Box::new(n));
 
-                    if demension == 0 {
-                        Self::balance(*t, demension, b, lr,Some(LR::L))
-                    } else {
-                        (*t,b)
-                    }
+                    (*t,b)
                 } else {
                     let (n,b) = Self::insert(t.right,
                                              positions,
@@ -411,11 +405,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                     t.right = Some(Box::new(n));
 
-                    if demension == 0 {
-                        Self::balance(*t, demension, b, lr,Some(LR::R))
-                    } else {
-                        (*t,b)
-                    }
+                    (*t,b)
                 }
             }
         }
@@ -518,7 +508,7 @@ impl<'a,const K:usize,P,T> KDTree<'a, K,P,T>
                                    0);
         self.root = Some(Box::new(n));
         self.root.as_ref().map(|root| {
-            *root.color.borrow_mut() = Color::Black;
+            *root.color.borrow_mut() = Color::Red;
         });
     }
 }
