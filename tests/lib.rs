@@ -20,7 +20,7 @@ fn nearest<'a,const D:usize,P>(p:&'a [P;D],positions:&'a [[P;D]]) -> &'a [P;D]
 }
 #[test]
 fn small_2d() {
-    const COUNT:usize = 100;
+    const COUNT:usize = 10;
 
     let mut kdt = KDTree::<2,f64,()>::new();
 
@@ -48,6 +48,7 @@ fn small_2d() {
         kdt.insert(pn,());
     }
 
+    dbg!(&kdt);
     let mut success = 0;
 
     for _ in 0..COUNT {

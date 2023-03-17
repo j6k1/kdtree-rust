@@ -29,18 +29,24 @@ impl Neg for Color {
         }
     }
 }
+pub trait Square: Mul + Sized + Clone + Copy {
+    fn square(self) -> <Self as Mul>::Output {
+        self * self
+    }
+}
+impl<T> Square for T where T: Mul + Sized + Clone + Copy {}
 pub trait EuclideanDistance<T> {
     type Output;
-    fn euclidean_distance(&self, rhs:T) -> Self::Output;
+    fn euclidean_distance(self, rhs:T) -> Self::Output;
 }
-impl<'a,const D:usize,P> EuclideanDistance<&'a [P;D]> for &'a [P;D]
+impl<'a,const K:usize,P> EuclideanDistance<&'a [P; K]> for &'a [P; K]
     where P: PartialOrd + Mul<P, Output = P> + Add<P, Output = P> + Sub<P, Output = P> +
-             Clone + Copy + Default + Distance<P, Output = P> {
+             Clone + Copy + Default + Distance<P, Output = P> + Square + Sized {
     type Output = P;
 
-    fn euclidean_distance(&self, rhs: &'a [P; D]) -> P {
+    fn euclidean_distance(self, rhs: &'a [P; K]) -> P {
         self.iter().zip(rhs.iter()).fold(P::default(),|acc,(p1,p2)| {
-            acc + p1.distance(p2)
+            acc + p1.distance(p2).square()
         })
     }
 }
@@ -65,7 +71,7 @@ impl<P> Distance<P> for P
 #[derive(Debug)]
 pub struct KDNode<'a,const K:usize,P,T>
     where P: PartialOrd + Mul + Add + Sub +
-             Clone + Copy + Default + Distance<P, Output = P> + 'a,
+             Clone + Copy + Default + Distance<P, Output = P>  + Square + Sized + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     positions:Rc<[P; K]>,
     value:Rc<RefCell<T>>,
@@ -185,11 +191,11 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         Some(&c), positions, distance, nearest_positions, current_value, (demension + 1) % K) {
                         distance = d;
 
-                        let d = positions.euclidean_distance(&t.positions);
+                        //let d = positions.euclidean_distsance(&t.positions);
 
                         let mut current_value = Rc::clone(&current_value);
 
-                        let current_positons = if d.partial_cmp(&distance).unwrap().is_le() {
+                        let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
                             distance = d;
                             current_value = Rc::clone(&t.value);
                             t.positions.borrow()
@@ -199,12 +205,12 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                         if let Some(c) = t.right.as_ref() {
                             if distance.partial_cmp(&positions[demension].distance(&c.positions[demension])).unwrap().is_gt() {
-                                Some((distance,current_positons,v))
+                                Some((distance,current_positions,v))
                             } else {
-                                Self::nearest(Some(&c),positions,distance,&current_positons,&current_value,(demension + 1) % K)
+                                Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
                             }
                         } else {
-                            Some((distance,current_positons,v))
+                            Some((distance,current_positions,v))
                         }
                     } else {
                         None
@@ -213,7 +219,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     let d = positions.euclidean_distance(&t.positions);
                     let mut current_value = Rc::clone(&current_value);
 
-                    let current_positons = if d.partial_cmp(&distance).unwrap().is_le() {
+                    let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
                         distance = d;
                         current_value = Rc::clone(&t.value);
                         t.positions.borrow()
@@ -221,7 +227,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         nearest_positions
                     };
 
-                    Some((distance,current_positons,current_value))
+                    Some((distance,current_positions,current_value))
                 }
             } else {
                 if let Some(c) = t.right.as_ref() {
@@ -232,7 +238,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         let d = positions.euclidean_distance(&t.positions);
                         let mut current_value = Rc::clone(&current_value);
 
-                        let current_positons = if d.partial_cmp(&distance).unwrap().is_le() {
+                        let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
                             distance = d;
                             current_value = Rc::clone(&t.value);
                             t.positions.borrow()
@@ -242,12 +248,12 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
                         if let Some(c) = t.left.as_ref() {
                             if distance.partial_cmp(&positions[demension].distance(&c.positions[demension])).unwrap().is_gt() {
-                               Some((distance,current_positons,v))
+                               Some((distance,current_positions,v))
                             } else {
-                                Self::nearest(Some(&c),positions,distance,&current_positons,&current_value,(demension + 1) % K)
+                                Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
                             }
                         } else {
-                            Some((distance,current_positons,v))
+                            Some((distance,current_positions,v))
                         }
                     } else {
                         None
@@ -256,7 +262,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     let d = positions.euclidean_distance(&t.positions);
                     let mut current_value = Rc::clone(&current_value);
 
-                    let current_positons = if d.partial_cmp(&distance).unwrap().is_le() {
+                    let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
                         distance = d;
                         current_value = Rc::clone(&t.value);
                         t.positions.borrow()
@@ -264,7 +270,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         nearest_positions
                     };
 
-                    Some((distance,current_positons,current_value))
+                    Some((distance,current_positions,current_value))
                 }
             }
         })
@@ -463,7 +469,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 }
 #[derive(Debug)]
 pub struct KDTree<'a,const K:usize,P,T>
-    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + 'a,
+    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + Square + Sized + 'a,
           &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     root: Option<Box<KDNode<'a, K,P,T>>>,
     l:PhantomData<&'a ()>
