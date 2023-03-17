@@ -188,7 +188,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 
     fn nearest(t: Option<&'a Box<KDNode<'a, K,P,T>>>,
                positions:&'a [P; K],
-               mut distance:P,
+               distance:P,
                nearest_positions:&'a [P; K],
                current_value:&Rc<RefCell<T>>,
                demension:usize) -> Option<(P, &'a [P; K], Rc<RefCell<T>>)> {
@@ -327,42 +327,30 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),color),b)
             },
             None if demension == 0 => {
-                let (n,b) = Self::insert(None,
-                                         positions,
-                                         color,
-                                         parent_color,
-                                         None,
-                                         Rc::clone(&value), (demension+1) % K);
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
                     color: Rc::clone(color),
                     left: None,
-                    right: Some(Box::new(n)),
+                    right: None,
                     demention: demension,
                     l:PhantomData::<&'a ()>
                 };
 
-                (t,b)
+                (t,Balance::None)
             },
             None => {
-                let (n,b) = Self::insert(None,
-                                         positions,
-                                         &Rc::clone(color),
-                                         parent_color,
-                                         lr,
-                                         Rc::clone(&value), (demension+1) % K);
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
                     color: Rc::clone(&color),
                     left: None,
-                    right: Some(Box::new(n)),
+                    right: None,
                     demention: demension,
                     l:PhantomData::<&'a ()>
                 };
 
-                (t,b)
+                (t,Balance::None)
             },
             Some(mut t) if demension == K - 1 => {
                 let parent_color = Some(color.deref().borrow().clone());
@@ -445,8 +433,8 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
     }
 
     fn balance(mut t: KDNode<'a, K,P,T>, demension:usize, balance:Balance, parent_lr:Option<LR>, lr:Option<LR>) -> (KDNode<'a, K,P,T>, Balance) {
-        (t,balance)
-        /*
+        //(t,balance)
+
         if demension > 0 {
             (t,balance)
         } else {
@@ -466,7 +454,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         };
                     }
 
-                    (t,Balance::Fix)
+                    (t, Balance::Fix)
                 },
                 Balance::Fix => {
                     let lr = lr.unwrap();
@@ -490,12 +478,10 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                             }
                         }
                     }
-                    (t,Balance::None)
+                    (t, Balance::None)
                 }
             }
         }
-
-         */
     }
 }
 #[derive(Debug)]

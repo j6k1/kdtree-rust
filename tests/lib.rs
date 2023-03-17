@@ -62,7 +62,7 @@ fn small_2d() {
         let expected = nearest(&p,&positions);
         let actual = kdt.nearest_position(&p);
 
-        if (p.euclidean_distance(expected) - p.euclidean_distance(&actual.unwrap())) < 100. {
+        if (p.euclidean_distance(expected) - p.euclidean_distance(&actual.unwrap())) < 1. {
             success += 1;
         } else {
             dbg!(expected,actual.unwrap(),p.euclidean_distance(expected),p.euclidean_distance(&actual.unwrap()));
