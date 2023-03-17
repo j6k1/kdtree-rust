@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 use std::rc::Rc;
@@ -70,7 +71,7 @@ impl<P> Distance<P> for P
 }
 #[derive(Debug)]
 pub struct KDNode<'a,const K:usize,P,T>
-    where P: PartialOrd + Mul<Output = P> + Add + Sub +
+    where P: Debug + PartialOrd + Mul<Output = P> + Add + Sub +
              Clone + Copy + Default + Distance<P, Output = P>  + Square + Sized + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     positions:Rc<[P; K]>,
@@ -78,10 +79,11 @@ pub struct KDNode<'a,const K:usize,P,T>
     color: Rc<RefCell<Color>>,
     left:Option<Box<KDNode<'a, K,P,T>>>,
     right:Option<Box<KDNode<'a, K,P,T>>>,
+    demention:usize,
     l:PhantomData<&'a ()>
 }
 impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
-    where P: PartialOrd + Mul<Output = P> + Add + Sub +
+    where P: Debug + PartialOrd + Mul<Output = P> + Add + Sub +
              Clone + Copy + Default + Distance<P, Output = P> + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     pub fn new(positions:Rc<[P; K]>, value:Rc<RefCell<T>>) -> KDNode<'a, K,P,T> {
@@ -91,6 +93,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
             color: Rc::new(RefCell::new(Color::Red)),
             left: None,
             right: None,
+            demention: K - 1,
             l:PhantomData::<&'a ()>
         }
     }
@@ -102,6 +105,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
             color: color,
             left: None,
             right: None,
+            demention: K - 1,
             l:PhantomData::<&'a ()>
         }
     }
@@ -120,8 +124,10 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         color: t.color,
                         left: left.right,
                         right: t.right,
+                        demention: t.demention,
                         l:PhantomData::<&'a ()>
                     },)),
+                    demention: left.demention,
                     l:PhantomData::<&'a ()>
                 }
             },
@@ -143,8 +149,10 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         color: t.color,
                         right: right.left,
                         left: t.left,
+                        demention:  t.demention,
                         l:PhantomData::<&'a ()>
                     })),
+                    demention: right.demention,
                     l:PhantomData::<&'a ()>
                 }
             },
@@ -187,94 +195,112 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
         t.and_then(|t| {
             if positions[demension].partial_cmp(&t.positions[demension]).unwrap().is_lt() {
                 if let Some(c) = t.left.as_ref() {
-                    if let Some((d,p,v)) = Self::nearest(
+                    if let Some((distance,current_positions,current_value)) = Self::nearest(
                         Some(&c), positions, distance, nearest_positions, current_value, (demension + 1) % K) {
-                        distance = d;
-
-                        let d = positions.euclidean_distance(&t.positions);
-
-                        let mut current_value = Rc::clone(&current_value);
-
-                        let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
-                            distance = d;
-                            current_value = Rc::clone(&t.value);
-                            t.positions.borrow()
-                        } else {
-                            p
-                        };
+                        let (distance,current_positions,current_value) = Self::nearest_center(Some(t),
+                                                                                                    positions,
+                                                                                                    distance,
+                                                                                                    current_positions,
+                                                                                            &current_value,
+                                                                                                     demension).unwrap();
 
                         if let Some(c) = t.right.as_ref() {
                             if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
-                                Some((distance,current_positions,v))
+                                Some((distance,current_positions,current_value))
                             } else {
                                 Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
                             }
                         } else {
-                            Some((distance,current_positions,v))
+                            Some((distance,current_positions,current_value))
                         }
                     } else {
-                        None
+                        unreachable!()
                     }
                 } else {
-                    let d = positions.euclidean_distance(&t.positions);
-                    let mut current_value = Rc::clone(&current_value);
+                    let (distance,current_positions,current_value) = Self::nearest_center(Some(t),
+                                                                              positions,
+                                                                              distance,
+                                                                              nearest_positions,
+                                                                              &current_value,
+                                                                              demension).unwrap();
 
-                    let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
-                        distance = d;
-                        current_value = Rc::clone(&t.value);
-                        t.positions.borrow()
+                    if let Some(c) = t.right.as_ref() {
+                        if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
+                            Some((distance,current_positions,current_value))
+                        } else {
+                            Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
+                        }
                     } else {
-                        nearest_positions
-                    };
-
-                    Some((distance,current_positions,current_value))
+                        Some((distance,current_positions,current_value))
+                    }
                 }
             } else {
                 if let Some(c) = t.right.as_ref() {
-                    if let Some((d,p,v)) = Self::nearest(
+                    if let Some((distance,current_positions,current_value)) = Self::nearest(
                         Some(&c),positions,distance,nearest_positions,current_value,(demension + 1) % K) {
-                        distance = d;
-
-                        let d = positions.euclidean_distance(&t.positions);
-
-                        let mut current_value = Rc::clone(&current_value);
-
-                        let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
-                            distance = d;
-                            current_value = Rc::clone(&t.value);
-                            t.positions.borrow()
-                        } else {
-                            p
-                        };
+                        let (distance,current_positions,current_value) = Self::nearest_center(Some(t),
+                                                                                                                        positions,
+                                                                                                                distance,
+                                                                                                            current_positions,
+                                                                                                                        &current_value,
+                                                                                                                    demension).unwrap();
 
                         if let Some(c) = t.left.as_ref() {
                             if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
-                               Some((distance,current_positions,v))
+                                Some((distance,current_positions,current_value))
                             } else {
                                 Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
                             }
                         } else {
-                            Some((distance,current_positions,v))
+                            Some((distance,current_positions,current_value))
                         }
                     } else {
-                        None
+                        unreachable!()
                     }
                 } else {
-                    let d = positions.euclidean_distance(&t.positions);
-                    let mut current_value = Rc::clone(&current_value);
+                    let (distance,current_positions,current_value) = Self::nearest_center(Some(t),
+                                                                              positions,
+                                                                              distance,
+                                                                              nearest_positions,
+                                                                              &current_value,
+                                                                              demension).unwrap();
 
-                    let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
-                        distance = d;
-                        current_value = Rc::clone(&t.value);
-                        t.positions.borrow()
+
+                    if let Some(c) = t.left.as_ref() {
+                        if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
+                            Some((distance,current_positions,current_value))
+                        } else {
+                            Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
+                        }
                     } else {
-                        nearest_positions
-                    };
-
-                    Some((distance,current_positions,current_value))
+                        Some((distance,current_positions,current_value))
+                    }
                 }
             }
         })
+    }
+
+    fn nearest_center(t: Option<&'a Box<KDNode<'a, K,P,T>>>,
+               positions:&'a [P; K],
+               mut distance:P,
+               nearest_positions:&'a [P; K],
+               current_value:&Rc<RefCell<T>>,
+               _:usize) -> Option<(P, &'a [P; K], Rc<RefCell<T>>)> {
+        Some(t.and_then(|t| {
+            let d = positions.euclidean_distance(&t.positions);
+
+            let mut current_value = Rc::clone(&current_value);
+
+            let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
+                distance = d;
+                current_value = Rc::clone(&t.value);
+                t.positions.borrow()
+            } else {
+                nearest_positions
+            };
+
+            Some((distance,current_positions, current_value))
+        }).expect("current node is none."))
     }
 
     fn insert(t: Option<Box<KDNode<'a, K,P,T>>>,
@@ -307,13 +333,13 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                                          parent_color,
                                          None,
                                          Rc::clone(&value), (demension+1) % K);
-
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
                     color: Rc::clone(color),
                     left: None,
                     right: Some(Box::new(n)),
+                    demention: demension,
                     l:PhantomData::<&'a ()>
                 };
 
@@ -326,13 +352,13 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                                          parent_color,
                                          lr,
                                          Rc::clone(&value), (demension+1) % K);
-
                 let t = KDNode {
                     positions: Rc::clone(positions),
                     value: Rc::clone(&value),
                     color: Rc::clone(&color),
                     left: None,
                     right: Some(Box::new(n)),
+                    demention: demension,
                     l:PhantomData::<&'a ()>
                 };
 
@@ -419,6 +445,8 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
     }
 
     fn balance(mut t: KDNode<'a, K,P,T>, demension:usize, balance:Balance, parent_lr:Option<LR>, lr:Option<LR>) -> (KDNode<'a, K,P,T>, Balance) {
+        (t,balance)
+        /*
         if demension > 0 {
             (t,balance)
         } else {
@@ -466,17 +494,19 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                 }
             }
         }
+
+         */
     }
 }
 #[derive(Debug)]
 pub struct KDTree<'a,const K:usize,P,T>
-    where P: PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + Square + Sized + 'a,
+    where P: Debug + PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + Square + Sized + 'a,
           &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     root: Option<Box<KDNode<'a, K,P,T>>>,
     l:PhantomData<&'a ()>
 }
 impl<'a,const K:usize,P,T> KDTree<'a, K,P,T>
-    where P: PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + 'a,
+    where P: Debug + PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + 'a,
           &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     pub fn new() -> KDTree<'a, K,P,T> {
         KDTree {
