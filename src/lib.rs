@@ -79,33 +79,33 @@ pub struct KDNode<'a,const K:usize,P,T>
     color: Rc<RefCell<Color>>,
     left:Option<Box<KDNode<'a, K,P,T>>>,
     right:Option<Box<KDNode<'a, K,P,T>>>,
-    demention:usize,
+    demension:usize,
     l:PhantomData<&'a ()>
 }
 impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
     where P: Debug + PartialOrd + Mul<Output = P> + Add + Sub +
              Clone + Copy + Default + Distance<P, Output = P> + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
-    pub fn new(positions:Rc<[P; K]>, value:Rc<RefCell<T>>) -> KDNode<'a, K,P,T> {
+    pub fn new(positions:Rc<[P; K]>, value:Rc<RefCell<T>>, demension:usize) -> KDNode<'a, K,P,T> {
         KDNode {
             positions: positions,
             value: value,
             color: Rc::new(RefCell::new(Color::Red)),
             left: None,
             right: None,
-            demention: K - 1,
+            demension: demension,
             l:PhantomData::<&'a ()>
         }
     }
 
-    fn with_color(positions:Rc<[P; K]>, value:Rc<RefCell<T>>, color:Rc<RefCell<Color>>) -> KDNode<'a, K,P,T> {
+    fn with_color(positions:Rc<[P; K]>, value:Rc<RefCell<T>>, color:Rc<RefCell<Color>>, demension:usize) -> KDNode<'a, K,P,T> {
         KDNode {
             positions: positions,
             value: value,
             color: color,
             left: None,
             right: None,
-            demention: K - 1,
+            demension: demension,
             l:PhantomData::<&'a ()>
         }
     }
@@ -124,10 +124,10 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         color: t.color,
                         left: left.right,
                         right: t.right,
-                        demention: t.demention,
+                        demension: t.demension,
                         l:PhantomData::<&'a ()>
                     },)),
-                    demention: left.demention,
+                    demension: left.demension,
                     l:PhantomData::<&'a ()>
                 }
             },
@@ -149,10 +149,10 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         color: t.color,
                         right: right.left,
                         left: t.left,
-                        demention:  t.demention,
+                        demension:  t.demension,
                         l:PhantomData::<&'a ()>
                     })),
-                    demention: right.demention,
+                    demension: right.demension,
                     l:PhantomData::<&'a ()>
                 }
             },
@@ -324,7 +324,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     Rc::clone(&color)
                 };
 
-                (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),color),b)
+                (KDNode::with_color(Rc::clone(positions), Rc::clone(&value),color,demension),b)
             },
             None if demension == 0 => {
                 let t = KDNode {
@@ -333,7 +333,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     color: Rc::clone(color),
                     left: None,
                     right: None,
-                    demention: demension,
+                    demension: demension,
                     l:PhantomData::<&'a ()>
                 };
 
@@ -346,7 +346,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                     color: Rc::clone(&color),
                     left: None,
                     right: None,
-                    demention: demension,
+                    demension: demension,
                     l:PhantomData::<&'a ()>
                 };
 
