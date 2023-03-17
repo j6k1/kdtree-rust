@@ -70,7 +70,7 @@ impl<P> Distance<P> for P
 }
 #[derive(Debug)]
 pub struct KDNode<'a,const K:usize,P,T>
-    where P: PartialOrd + Mul + Add + Sub +
+    where P: PartialOrd + Mul<Output = P> + Add + Sub +
              Clone + Copy + Default + Distance<P, Output = P>  + Square + Sized + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     positions:Rc<[P; K]>,
@@ -81,7 +81,7 @@ pub struct KDNode<'a,const K:usize,P,T>
     l:PhantomData<&'a ()>
 }
 impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
-    where P: PartialOrd + Mul + Add + Sub +
+    where P: PartialOrd + Mul<Output = P> + Add + Sub +
              Clone + Copy + Default + Distance<P, Output = P> + 'a,
              &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     pub fn new(positions:Rc<[P; K]>, value:Rc<RefCell<T>>) -> KDNode<'a, K,P,T> {
@@ -204,7 +204,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         };
 
                         if let Some(c) = t.right.as_ref() {
-                            if distance.partial_cmp(&positions[demension].distance(&c.positions[demension])).unwrap().is_gt() {
+                            if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
                                 Some((distance,current_positions,v))
                             } else {
                                 Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
@@ -248,7 +248,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         };
 
                         if let Some(c) = t.left.as_ref() {
-                            if distance.partial_cmp(&positions[demension].distance(&c.positions[demension])).unwrap().is_gt() {
+                            if distance.partial_cmp(&positions[demension].distance(&c.positions[demension]).square()).unwrap().is_lt() {
                                Some((distance,current_positions,v))
                             } else {
                                 Self::nearest(Some(&c),positions,distance,current_positions,&current_value,(demension + 1) % K)
@@ -470,13 +470,13 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
 }
 #[derive(Debug)]
 pub struct KDTree<'a,const K:usize,P,T>
-    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + Square + Sized + 'a,
+    where P: PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + Square + Sized + 'a,
           &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     root: Option<Box<KDNode<'a, K,P,T>>>,
     l:PhantomData<&'a ()>
 }
 impl<'a,const K:usize,P,T> KDTree<'a, K,P,T>
-    where P: PartialOrd + Mul + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + 'a,
+    where P: PartialOrd + Mul<Output = P> + Add + Sub + Clone + Copy + Default + Distance<P, Output = P> + 'a,
           &'a [P; K]: EuclideanDistance<&'a [P; K], Output = P> + 'a {
     pub fn new() -> KDTree<'a, K,P,T> {
         KDTree {
