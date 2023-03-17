@@ -528,10 +528,7 @@ impl<'a,const K:usize,P,T> KDTree<'a, K,P,T>
                                    Rc::new(RefCell::new(value)),
                                    0);
         self.root = Some(Box::new(n));
-        self.root.as_ref().map(|root| {
-            *root.color.borrow_mut() = Color::Red;
-        });
-    }
+   }
 }
 
 
