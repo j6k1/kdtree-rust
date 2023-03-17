@@ -191,7 +191,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         Some(&c), positions, distance, nearest_positions, current_value, (demension + 1) % K) {
                         distance = d;
 
-                        //let d = positions.euclidean_distsance(&t.positions);
+                        let d = positions.euclidean_distance(&t.positions);
 
                         let mut current_value = Rc::clone(&current_value);
 
@@ -236,6 +236,7 @@ impl<'a,const K:usize,P,T> KDNode<'a, K,P,T>
                         distance = d;
 
                         let d = positions.euclidean_distance(&t.positions);
+
                         let mut current_value = Rc::clone(&current_value);
 
                         let current_positions = if d.partial_cmp(&distance).unwrap().is_le() {
